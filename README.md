@@ -14,12 +14,12 @@
 
 ## Install
 
-Replace `YOUR_GITHUB_USER` with the GitHub account that owns the repository.
+Replace `404458478` with the GitHub account that owns the repository.
 
 ```sh
 curl -fsSL \
   -o /tmp/passwall-install.sh \
-  https://raw.githubusercontent.com/YOUR_GITHUB_USER/passwall-oneclick/main/install.sh \
+  https://raw.githubusercontent.com/404458478/passwall-oneclick/main/install.sh \
   && sh /tmp/passwall-install.sh
 ```
 
@@ -28,14 +28,14 @@ Mirror CDN:
 ```sh
 curl -fsSL \
   -o /tmp/passwall-install.sh \
-  https://cdn.jsdelivr.net/gh/YOUR_GITHUB_USER/passwall-oneclick@main/install.sh \
+  https://cdn.jsdelivr.net/gh/404458478/passwall-oneclick@main/install.sh \
   && sh /tmp/passwall-install.sh
 ```
 
 Run from a Windows SSH client:
 
 ```powershell
-ssh root@ROUTER_IP "curl -fsSL -o /tmp/passwall-install.sh https://raw.githubusercontent.com/YOUR_GITHUB_USER/passwall-oneclick/main/install.sh && sh /tmp/passwall-install.sh"
+ssh root@ROUTER_IP "curl -fsSL -o /tmp/passwall-install.sh https://raw.githubusercontent.com/404458478/passwall-oneclick/main/install.sh && sh /tmp/passwall-install.sh"
 ```
 
 ## Usage

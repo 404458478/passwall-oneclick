@@ -1,0 +1,61 @@
+name: build-apk
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，例如 26.11.21-r5'
+        required: true
+        default: '26.11.21-r5'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VERSION"
+
+      - name: Build apk
+        run: sh pkg-build/v3/build-apk-ci.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-passwall-socks5-batch-${{ steps.ver.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Publish to Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.ver.outputs.version }}
+          body: |
+            PassWall SOCKS5 批量扩展离线安装包
+
+            - 版本：${{ steps.ver.outputs.version }}
+            - 主开关默认关闭；打开 PassWall 主开关后 DNS检测 等功能自动启用
+            - 卸载会还原 PassWall 原版页面
+          files: |
+            dist/*.apk
+            dist/*.sha256
+            dist/SHA256SUMS
+          fail_on_unmatched_files: false

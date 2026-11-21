@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+[ -f /etc/config/passwall ] ||
+    { echo "未检测到 PassWall，无法完成扩展安装。" >&2; exit 1; }
+
+INSTALLER="/usr/share/passwall-socks5-batch/install.sh"
+[ -s "$INSTALLER" ] ||
+    { echo "安装器文件缺失：$INSTALLER" >&2; exit 1; }
+
+sh "$INSTALLER"

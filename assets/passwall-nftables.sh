@@ -638,6 +638,32 @@ load_acl() {
 			[ -n "${DIRECT_DNSMASQ_PORT}" ] && DNS_REDIRECT=${DIRECT_DNSMASQ_PORT}
 		fi
 
+		# DNS检测：勾选的源 IP 的 DNS 查询直接交给 sing-box DNS 服务（节点当地 DNS）
+		local _dnscheck_port=15363
+		local _dnscheck_gnode=$(config_n_get @global[0] node)
+		if [ -n "${_dnscheck_port}" ] && [ -n "${_dnscheck_gnode}" ] && [ "$(config_n_get ${_dnscheck_gnode} protocol)" = "_shunt" ]; then
+			local _dnscheck_group=$(config_n_get ${_dnscheck_gnode} shunt_group)
+			local _dnscheck_ids=$(uci show $CONFIG | grep "=shunt_rules" | awk -F '.' '{print $2}' | awk -F '=' '{print $1}')
+			local _dnscheck_id _dnscheck_src _dnscheck_s
+			for _dnscheck_id in $_dnscheck_ids; do
+				[ "${_dnscheck_group}" != "$(config_n_get ${_dnscheck_id} group)" ] && continue
+				[ "$(config_n_get ${_dnscheck_gnode} "${_dnscheck_id}_dns_check")" = "1" ] || continue
+				_dnscheck_src=$(config_n_get ${_dnscheck_id} source)
+				[ -n "${_dnscheck_src}" ] || continue
+				for _dnscheck_s in $_dnscheck_src; do
+					case "${_dnscheck_s}" in *[!0-9.]*) continue ;; esac
+					echolog "     - 源 IP ${_dnscheck_s} 的 DNS 强制走节点当地 DNS[${_dnscheck_port}]"
+					nft "add rule $NFTABLE_NAME PSW_DNS ip saddr ${_dnscheck_s} udp dport 53 counter redirect to :${_dnscheck_port} comment \"dnscheck\""
+					nft "add rule $NFTABLE_NAME PSW_DNS ip saddr ${_dnscheck_s} tcp dport 53 counter redirect to :${_dnscheck_port} comment \"dnscheck\""
+					local _dnscheck_mac=$(awk -v ip="${_dnscheck_s}" '$1==ip {print $4}' /proc/net/arp 2>/dev/null | head -n 1)
+					if [ -n "${_dnscheck_mac}" ] && [ "${_dnscheck_mac}" != "00:00:00:00:00:00" ]; then
+						nft "add rule $NFTABLE_NAME PSW_DNS ether saddr ${_dnscheck_mac} udp dport 53 counter redirect to :${_dnscheck_port} comment \"dnscheck-mac\""
+						nft "add rule $NFTABLE_NAME PSW_DNS ether saddr ${_dnscheck_mac} tcp dport 53 counter redirect to :${_dnscheck_port} comment \"dnscheck-mac\""
+					fi
+				done
+			done
+		fi
+
 		if [ -n "$DNS_REDIRECT" ]; then
 			nft "add rule $NFTABLE_NAME PSW_MANGLE ip protocol udp udp dport 53 counter return comment \"默认\""
 			nft "add rule $NFTABLE_NAME PSW_MANGLE ip protocol tcp tcp dport 53 counter return comment \"默认\""

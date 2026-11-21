@@ -1,5 +1,13 @@
-7c17410035f11b2c5045fc30e2c40c1831713ade739fd7c091b7f3cefc006ef8  install.sh
-11229c2c7dfdf600eb83fcb9a03dcfac7a53922f70fa6a38387a1204322e3626  README.md
-5e62f63432465fecfc0caafe981f288c3aee74129a0845ae61d59c5bae7ecf07  assets/passwall-node-list.htm
-81cc8dff060b5fc40bcc53f1b750e2719246d6f43d70aa098c5a76aa23103a85  assets/passwall-nftables.sh
+aaa05be8c7f1eaf850e82b0002911a16ff8d7b0a14f9187b8009c9447ae185bf  assets/passwall-nftables.sh
+1e0e7594c657b228da89dbb8ba3bd2ed4884a83d9bf3236b42f9cfcfc4807861  assets/passwall-node-list.htm
 36a47db05a99d555a755cfc12f60805c47e3931d8b74a595e26bcfc4257d4946  assets/passwall-util_sing-box.lua
+7265b7b83b25894823fff7ebdec81c33c529fefc1a9c891c6c5c063c29089add  dev/26.11.21-dev1/luci-app-passwall-socks5-batch-26.11.21-r5.apk
+8d0cd10e73a6fb4d4f3775bbc5e2a2923db7c38096fdadd40652912c0f936d32  dev/26.11.21-dev1/PassWall-SOCKS5-batch-install-dns-v2.sh
+8d0cd10e73a6fb4d4f3775bbc5e2a2923db7c38096fdadd40652912c0f936d32  install.sh
+a1571c1c59dcb812e51e1295d120109cda9fb96572774ed97ea970e0cb01c5b3  releases/26.11.20-r5/luci-app-passwall-socks5-batch-26.11.20-r5.apk
+d0abc2a95c62ea9b65324a287d181a0b5dd4adc6e1d831dbe32f92baffeda31e  releases/26.11.21-r1/luci-app-passwall-socks5-batch-26.11.21-r1.apk
+f233565f53ce6ec8bf77d9b81fc06a6f9847cad9cf89935bfe700a8f7415b16c  releases/26.11.21-r2/luci-app-passwall-socks5-batch-26.11.21-r2.apk
+6018e32a6ee225cc6bd68b4e5127bd6148d8615fe53b1c49edc82fe8f1e13c18  releases/26.11.21-r3/luci-app-passwall-socks5-batch-26.11.21-r3.apk
+f6509f3335941559e82c15eab47568e11996fbc001f99f925b9dca8794fad4e3  releases/26.11.21-r4/luci-app-passwall-socks5-batch-26.11.21-r4.apk
+7265b7b83b25894823fff7ebdec81c33c529fefc1a9c891c6c5c063c29089add  releases/26.11.21-r5/luci-app-passwall-socks5-batch-26.11.21-r5.apk
+b5811c1c1163008555b7f063c7a9838f6ce7a91e08bde44877a1479973c88126  README.md

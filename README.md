@@ -1,91 +1,41 @@
-# PassWall One-Click Installer
+# PassWall SOCKS5 批量扩展（passwall-oneclick）
 
-适用于带传统 PassWall、Lua LuCI 和 Sing-Box/Xray 分流功能的 OpenWrt / iStoreOS。
+离线安装包 / 安装脚本发布仓库。每个版本单独保留，不覆盖旧版本。
 
-当前修改基于并验证于：
+## 目录
 
-- iStoreOS `25.12.6`
-- PassWall `26.11.11-r1`
-- x86_64
+    install.sh                    最新安装/卸载脚本
+    assets/                       脚本使用的资源文件（节点列表页 / nftables / util）
+    releases/<版本>/              正式版本（APK + SHA256）
+    dev/<版本>/                   开发版本（每次构建单独保留）
 
-## Features
+## 版本历史
 
-- 节点管理菜单聚合
-- SOCKS5 节点批量导入
-- 节点自动命名，例如 `socks5-node1`
-- 节点分组、指定起始编号、清空已有节点
-- SOCKS5 节点快速更改弹窗
-- 节点列表一键 Ping、TCPing、URL 测试
-- 一键勾选当前可见节点
-- 测试时查询出口 IP 和中文城市
-- 断网禁直连开关
-- 内网 IP/CIDR 批量导入分流规则
-- IP 范围一键生成，`①` 至 `④` 循环绑定 SOCKS5 节点
-- 自动跳过已分配 IP
-- 规则清理和配置备份
-- LuCI 主题配色和自定义居中弹窗
-- nftables hook 链恢复补丁
-- Sing-box 黑洞出站补丁
+| 版本 | 说明 |
+|---|---|
+| 26.11.20-r5 | 初版离线包（基础批量管理 + DNS 防泄漏） |
+| 26.11.21-r1 | DNS检测 / IP可用性检测 / 分页 / 弹窗等 UI |
+| 26.11.21-r2 | 主开关统一控制 DNS 接管启停 |
+| 26.11.21-r3 | 安装后主开关默认关闭 |
+| 26.11.21-r4 | 修复默认关闭时仍残留代理/nft 规则 |
+| 26.11.21-r5 | 卸载安全还原 PassWall 原版模板（当前最新） |
+| 26.11.21-dev1 | 开发版（同 r5 内容，开发渠道首个构建） |
 
-## Repository Assets
+## 安装
 
-- `install.sh`：主安装器、LuCI 页面和 UCI 导入逻辑
-- `assets/passwall-node-list.htm`：增强后的节点列表页面
-- `assets/passwall-nftables.sh`：nftables 基础链恢复补丁
-- `assets/passwall-util_sing-box.lua`：黑洞默认出口兼容补丁
+    apk add --allow-untrusted luci-app-passwall-socks5-batch-26.11.21-r5.apk
 
-运行本地克隆中的安装器时会直接使用仓库资产；通过 `curl | sh` 方式运行时会从当前仓库下载资产。
+或：
 
-## Install
+    sh install.sh
 
-```sh
-curl -fsSL \
-  -o /tmp/passwall-install.sh \
-  https://raw.githubusercontent.com/404458478/passwall-oneclick/main/install.sh \
-  && sh /tmp/passwall-install.sh
-```
+卸载：
 
-通过 SSH 安装：
+    apk del luci-app-passwall-socks5-batch
 
-```powershell
-ssh root@ROUTER_IP "curl -fsSL -o /tmp/passwall-install.sh https://raw.githubusercontent.com/404458478/passwall-oneclick/main/install.sh && sh /tmp/passwall-install.sh"
-```
+## 行为
 
-## Usage
-
-安装后进入：
-
-```text
-服务 -> PassWall -> 节点管理
-服务 -> PassWall -> 批量导入分流规则
-```
-
-启用 SOCKS5 全局 TCP/UDP、DNS 和按客户端转发：
-
-```sh
-sh /tmp/passwall-install.sh --fix-sk5 223.5.5.5
-```
-
-移除自定义 LuCI 页面，不删除 PassWall 节点和分流规则：
-
-```sh
-sh /tmp/passwall-install.sh --uninstall
-```
-
-`--uninstall` 不会自动还原 `node_list.htm`、`nftables.sh` 和 `util_sing-box.lua`；安装时会在目标文件旁生成 `.bak.oneclick.*` 备份。
-
-## Requirements
-
-- root SSH access
-- 传统 PassWall，不支持 PassWall2
-- Lua LuCI
-- Sing-Box/Xray 分流规则支持
-- `curl`
-- `lua`
-
-## Security
-
-- 安装器不包含路由器密码或 SOCKS5 凭据。
-- 修改 UCI 配置前会创建 `/root/passwall.bak.*` 备份。
-- 生产环境建议固定到 Git tag，不要直接跟随 `main`。
-- 通过远程 URL 执行脚本前应先下载并检查内容。
+- 安装后 PassWall 主开关默认关闭。
+- 打开主开关：自动启动 DNS 接管守护并加载 DNS检测 nft 规则。
+- 关闭主开关：自动停止守护并清理规则。
+- 卸载会还原 PassWall 原版文件（节点列表模板有持久备份 + 内置兜底）。

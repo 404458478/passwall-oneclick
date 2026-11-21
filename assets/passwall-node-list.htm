@@ -4,6 +4,12 @@ local api = map.api
 local appname = map.config
 local is_js_luci = api.is_js_luci()
 local section_tag = is_js_luci and "div" or "fieldset"
+local plugin_uci = require("luci.model.uci").cursor()
+local plugin_threshold = tonumber(plugin_uci:get("passwall", "@global_other[0]", "ip_probe_threshold")) or 400
+local plugin_page_size = tonumber(plugin_uci:get("passwall", "@global_other[0]", "node_page_size"))
+if not plugin_page_size then
+	plugin_page_size = 20
+end
 
 local shunt_rule_list = {}
 local node = map:get("@global[0]", "node")
@@ -439,7 +445,7 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 		min-width: 0;
 	}
 
-	#cbi-<%=appname%>-nodes .pw-ping, #cbi-<%=appname%>-nodes .pw-tcping, #cbi-<%=appname%>-nodes .pw-urltest {
+	#cbi-<%=appname%>-nodes .pw-ping, #cbi-<%=appname%>-nodes .pw-tcping {
 		flex: 0 0 50px;
 		white-space: nowrap;
 		min-width: 0;
@@ -487,6 +493,247 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 	background-color: rgba(131, 191, 255, 0.7) !important;
 	box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
+
+	.pw-progress-mask {
+		display: none;
+		position: fixed;
+		left: 0;
+		top: 0;
+		width: 100vw;
+		height: 100vh;
+		background: rgba(0, 0, 0, 0.35);
+		z-index: 2000;
+	}
+	.pw-progress-box {
+		position: fixed;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		min-width: 340px;
+		max-width: 86vw;
+		background: var(--background-color, #fff);
+		color: inherit;
+		border-radius: 10px;
+		box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
+		padding: 18px 20px;
+		text-align: left;
+	}
+	.pw-progress-title {
+		font-weight: 600;
+		font-size: 1.05em;
+		margin-bottom: 6px;
+	}
+	.pw-progress-text {
+		opacity: .8;
+		margin-bottom: 12px;
+		font-size: .92em;
+	}
+	.pw-progress-track {
+		height: 8px;
+		border-radius: 4px;
+		background: rgba(127, 127, 127, .25);
+		overflow: hidden;
+	}
+	.pw-progress-bar {
+		height: 100%;
+		width: 0;
+		background: linear-gradient(90deg, #4c6ef5, #4dabf7);
+		border-radius: 4px;
+	}
+	.pw-progress-pct {
+		margin-top: 6px;
+		text-align: right;
+		font-size: .85em;
+		opacity: .75;
+	}
+
+	.pw-quick-hint {
+		font-size: .9em;
+		opacity: .72;
+		line-height: 1.7;
+		margin: 6px 0 2px;
+		word-break: break-word;
+	}
+
+	/* 节点 IP 可用性检测 */
+	.pw-probe-result {
+		font-size: inherit;
+		margin-right: 6px;
+		white-space: nowrap;
+	}
+	.pw-probe-result.pw-probe-ok {
+		color: #2f9e44;
+	}
+	.pw-probe-result.pw-probe-fail {
+		color: #e03131;
+	}
+
+	/* IP可用性 总开关 */
+
+	/* 延时着色：正常绿色，偏高红色 */
+	.pw-probe-lat-low {
+		color: #2f9e44;
+	}
+	.pw-probe-lat-high {
+		color: #e03131;
+	}
+
+	/* 每页显示 / 分页 */
+	.pw-pager {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		flex-wrap: wrap;
+		gap: 10px;
+		padding: 6px 12px 10px;
+		font-size: 95%;
+	}
+	.pw-pager select {
+		width: auto !important;
+		min-width: 5em;
+		height: 1.8em !important;
+		line-height: 1.8em !important;
+		margin: 0 !important;
+		padding: 1px 4px !important;
+	}
+	.pw-pager button[disabled] {
+		opacity: .45;
+		cursor: not-allowed;
+	}
+	tr.pw-page-hidden {
+		display: none !important;
+	}
+
+	/* 分页页码 */
+	#pw-pager-pages {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+	#pw-pager-pages button {
+		min-width: 2em;
+		padding: 1px 6px !important;
+		margin: 0 !important;
+	}
+	#pw-pager-pages button.pw-pager-current {
+		font-weight: bold;
+		background: var(--primary-color, #4c6ef5) !important;
+		color: #fff !important;
+		border-color: var(--primary-color, #4c6ef5) !important;
+	}
+
+	td.pw-probe {
+		text-align: center;
+		vertical-align: middle !important;
+	}
+
+	/* 开关 + 文字：统一垂直居中，避免 inline-block 基线错位 */
+	.pw-dns-check {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		white-space: nowrap;
+		vertical-align: middle;
+	}
+	.pw-dns-check > .pw-switch {
+		flex: 0 0 36px;
+		height: 20px;
+		position: relative;
+		vertical-align: middle;
+	}
+	th.pw-probe-th {
+		vertical-align: middle !important;
+		text-align: center !important;
+	}
+
+	/* 表头统一字体、字号、字重 */
+	#node_list .cbi-section-table-titles th,
+	#node_list .cbi-section-table-titles th label,
+	#node_list .cbi-section-table-titles th span,
+	#node_list .cbi-section-table-titles th .pw-dns-check,
+	#node_list .cbi-section-table-titles th .cbi-button {
+		font-family: inherit !important;
+		font-size: 1em !important;
+		font-weight: inherit !important;
+		line-height: 1.4 !important;
+	}
+	#node_list .cbi-section-table-titles th {
+		font-weight: bold;
+	}
+
+
+	/* 表头所有功能排成一排 */
+	.pw-bulk-tests {
+		flex-wrap: nowrap !important;
+		overflow: visible !important;
+		gap: 12px !important;
+	}
+	.pw-bulk-tests .pw-dns-check,
+	.pw-bulk-tests .pw-block-direct {
+		margin-right: 0 !important;
+	}
+
+	/* 表头按钮：鼠标悬停/按下/聚焦的视觉反馈 */
+	.pw-bulk-tests .cbi-button {
+		cursor: pointer;
+		transition: filter .15s ease, transform .06s ease, box-shadow .15s ease;
+	}
+	.pw-bulk-tests .cbi-button:hover {
+		filter: brightness(1.12);
+		box-shadow: 0 0 0 2px rgba(76, 110, 245, .28);
+	}
+	.pw-bulk-tests .cbi-button:active {
+		transform: translateY(1px) scale(.98);
+		filter: brightness(.9);
+	}
+	.pw-bulk-tests .cbi-button:focus-visible {
+		outline: 2px solid var(--primary-color, #4c6ef5);
+		outline-offset: 2px;
+	}
+
+	/* 所有弹窗强制在网页正中心 */
+	#set_node_div,
+	#add_link_div,
+	#reassign_group_div {
+		position: fixed !important;
+		left: 50% !important;
+		top: 50% !important;
+		transform: translate(-50%, -50%) !important;
+		width: 90% !important;
+		max-width: 30rem !important;
+		max-height: 90vh !important;
+		overflow: auto !important;
+		z-index: 1500 !important;
+	}
+	#pw-sk5-edit-modal,
+	#modal-mask,
+	.pw-progress-mask {
+		position: fixed !important;
+		left: 0 !important;
+		top: 0 !important;
+		width: 100vw !important;
+		height: 100vh !important;
+		inset: 0 !important;
+	}
+	#pw-sk5-edit-modal {
+		align-items: center !important;
+		justify-content: center !important;
+		z-index: 1600 !important;
+	}
+	#pw-sk5-edit-dialog {
+		position: relative !important;
+		left: auto !important;
+		top: auto !important;
+		transform: none !important;
+		margin: auto !important;
+	}
+	.pw-progress-box {
+		position: fixed !important;
+		left: 50% !important;
+		top: 50% !important;
+		transform: translate(-50%, -50%) !important;
+		z-index: 2100 !important;
+	}
 </style>
 
 <style>
@@ -689,6 +936,7 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
+		padding-left: 40px;
 		gap: 0.3em 0.8em;
 		margin: 0.4em 0;
 		font-size: 90%;
@@ -715,6 +963,12 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 		line-height: 1.2 !important;
 		padding: 0.15em 0.3em !important;
 		margin: 0 !important;
+	}
+
+	@media (max-width: 720px) {
+		.pw-filter {
+			padding-left: 12px;
+		}
 	}
 
 	.pw-filter .pw-filter-count {
@@ -1066,38 +1320,6 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 		);
 	}
 
-	function urltest_node(cbi_id, dom) {
-		if (dom.dataset.busy == "1" || !cbi_id) return;
-		dom.dataset.busy = "1";
-		dom.title = "<%:HTTP request latency, for reference only%>";
-		dom.style.color = "";
-		dom.innerText = "<%:Check...%>";
-		XHR.get('<%=api.url("urltest_node")%>', {
-				id: cbi_id
-			},
-			function(x, result) {
-				let color = "red";
-				let text = "<%:Error%>";
-				if (x && x.status == 200) {
-					if (result.use_time == null || result.use_time.trim() == "") {
-						text = result.http_code >= 400 ? "HTTP " + result.http_code : "<%:Timeout%>";
-					} else {
-						let use_time = parseInt(result.use_time);
-						if (use_time < 1000)
-							color = "green";
-						else if (use_time < 2000)
-							color = "#fb9a05";
-						text = use_time + " ms";
-						dom.title += "\n<%:Initial handshake time%>: " + result.handshake_time + " ms";
-					}
-				}
-				dom.innerText = text;
-				dom.style.color = color;
-				dom.dataset.busy = "0";
-			}
-		);
-	}
-
 	function ping_node(cbi_id, dom, type) {
 		if (dom.dataset.busy == "1" || !cbi_id) return;
 		const full = get_address_full(cbi_id);
@@ -1291,14 +1513,10 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 				row.querySelector(".pw-ping a");
 			const tcpingTarget =
 				row.querySelector(".pw-tcping a");
-			const urltestTarget =
-				row.querySelector(".pw-urltest a");
 			if (pingTarget)
 				ping_node(id, pingTarget, "icmp");
 			if (tcpingTarget)
 				ping_node(id, tcpingTarget, "tcping");
-			if (urltestTarget)
-				urltest_node(id, urltestTarget);
 		});
 		if (window.pwSocksGeo)
 			window.pwSocksGeo.enhance(true);
@@ -1667,18 +1885,30 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 				<th class="th cbi-section-table-cell" style="width:40%"><%:Remarks%></th>
 				<th class="th cbi-section-table-cell" style="width:8%">Ping</th>
 				<th class="th cbi-section-table-cell" style="width:8%">TCPing</th>
-				<th class="th cbi-section-table-cell" style="width:8%"><%:URL Test%></th>
+				<th class="th cbi-section-table-cell pw-probe-th" style="width:14%">IP可用性</th>
                                 <th class="th cbi-section-table-cell cbi-section-actions">
-                                        <div class="pw-bulk-tests" title="测试 Ping、TCPing 和 URL；有勾选时测试勾选节点，否则测试当前可见节点">
-                                                <label class="pw-block-direct"
-                                                    title="启用后分流默认出口改为黑洞，SOCKS5 节点断网时不会回退直连">
-                                                        <span class="pw-switch">
-                                                                <input id="pw-block-direct-toggle" type="checkbox" role="switch"
-                                                                    onchange="socksBlockDirect.toggle(this)"/>
-                                                                <span class="pw-switch-slider"></span>
-                                                        </span>
-                                                        <span>断网禁直连</span>
-                                                </label>
+                                        <div class="pw-bulk-tests">
+				<label class="pw-dns-check"
+					                                                    title="DNS检测：开启后所有带源 IP 的分流规则，DNS 查询强制经对应 SOCKS5 节点解析（DNS 接管）">
+					                                                        <span class="pw-switch">
+					                                                                <input id="pw-dns-check-toggle" type="checkbox" role="switch"
+					                                                                    onchange="socksDnsCheck.toggle(this)"/>
+					                                                                <span class="pw-switch-slider"></span>
+					                                                        </span>
+					                                                        <span>DNS检测</span>
+					                                                </label>
+				<label class="pw-dns-check" title="IP可用性：开启后自动检测有延时的节点的 IP/账号/密码，并显示出口 IP"><span class="pw-switch"><input id="pw-ip-probe-toggle" type="checkbox" role="switch" onchange="socksIpProbe.toggle(this)"/><span class="pw-switch-slider"></span></span><span>IP可用性</span></label>
+				<label class="pw-block-direct"
+					                                                    title="启用后分流默认出口改为黑洞，SOCKS5 节点断网时不会回退直连">
+					                                                        <span class="pw-switch">
+					                                                                <input id="pw-block-direct-toggle" type="checkbox" role="switch"
+					                                                                    onchange="socksBlockDirect.toggle(this)"/>
+					                                                                <span class="pw-switch-slider"></span>
+					                                                        </span>
+					                                                        <span>断网禁直连</span>
+					                                                </label>
+                                                
+                                                                                                
                                                 <input class="btn cbi-button cbi-button-edit" type="button"
                                                     value="勾选所有节点" onclick="checked_all_node(this)"/>
                                                 <input class="btn cbi-button cbi-button-apply" type="button" value="测试 PING" onclick="test_visible_nodes()"/>
@@ -1710,9 +1940,11 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
                 </td>
 		<td class="td cbi-value-field pw-ping">{{ping}}</td>
 		<td class="td cbi-value-field pw-tcping">{{tcping}}</td>
-		<td class="td cbi-value-field pw-urltest">{{url_test}}</td>
+			<td class="td cbi-value-field pw-probe">
+				<span class="pw-probe-result" data-node="{{id}}"></span>
+			</td>
 		<td class="td cbi-section-table-cell nowrap cbi-section-actions pw-actions">
-			<input class="btn cbi-button cbi-button-edit pw-quick-edit" type="button" value="快速更改" onclick="socksQuickEdit.open('{{id}}')" title="快速更改 SOCKS5 信息"/>
+			<input class="btn cbi-button cbi-button-edit pw-quick-edit" type="button" value="更改" onclick="socksQuickEdit.open('{{id}}')" title="更改节点信息"/>
 			<div class="node-wrapper">
 				<input class="btn cbi-button cbi-button-edit" type="button" value="<%:To Top%>" onclick="node_action('row_top', null, {btn:this, group:'{{group}}'})" title="<%:To Top%>"/>
 				<input class="btn cbi-button cbi-button-apply" type="button" value="<%:Use%>" id="apply_{{id}}" onclick="set_node_div.open('{{id}}','{{protocol}}')"/>
@@ -1728,29 +1960,29 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 <<%=section_tag%> class="cbi-section" id="node_list">
 </<%=section_tag%>>
 
+<div id="pw-pager" class="pw-pager">
+	<label>每页显示 <select id="pw-pager-size">
+		<option value="20">20 行</option>
+		<option value="50">50 行</option>
+		<option value="0">全部在一页</option>
+	</select></label>
+	<button type="button" class="btn cbi-button" id="pw-pager-prev">上一页</button>
+	<span id="pw-pager-pages"></span>
+	<button type="button" class="btn cbi-button" id="pw-pager-next">下一页</button>
+	<span id="pw-pager-info"></span>
+</div>
+
 <div id="pw-sk5-edit-modal" role="dialog" aria-modal="true" aria-labelledby="pw-sk5-edit-title">
 	<div id="pw-sk5-edit-dialog">
 		<button id="pw-sk5-edit-close" type="button" title="关闭" onclick="socksQuickEdit.close()">×</button>
-		<h3 id="pw-sk5-edit-title">快速更改 SOCKS5 节点</h3>
+		<h3 id="pw-sk5-edit-title">更改节点</h3>
 		<div class="pw-quick-field">
-			<label for="pw-sk5-edit-remarks">备注</label>
-			<input id="pw-sk5-edit-remarks" type="text" autocomplete="off"/>
+			<label for="pw-sk5-edit-line">节点</label>
+			<input id="pw-sk5-edit-line" type="text" autocomplete="off" spellcheck="false"/>
 		</div>
-		<div class="pw-quick-field">
-			<label for="pw-sk5-edit-address">地址 / IP</label>
-			<input id="pw-sk5-edit-address" type="text" autocomplete="off" spellcheck="false"/>
-		</div>
-		<div class="pw-quick-field">
-			<label for="pw-sk5-edit-port">端口</label>
-			<input id="pw-sk5-edit-port" type="number" min="1" max="65535" inputmode="numeric"/>
-		</div>
-		<div class="pw-quick-field">
-			<label for="pw-sk5-edit-username">用户名</label>
-			<input id="pw-sk5-edit-username" type="text" autocomplete="off"/>
-		</div>
-		<div class="pw-quick-field">
-			<label for="pw-sk5-edit-password">密码</label>
-			<input id="pw-sk5-edit-password" type="password" autocomplete="new-password" placeholder="留空则不修改"/>
+		<div class="pw-quick-hint">
+			请使用下面的格式，分隔符可在英文逗号（,）、斜线（/）、竖线（|）与冒号（:）中任选一种（中文全角符号同样识别）：<br/>
+			地址IP / 端口 / 用户名 / 密码（密码留空表示不修改，备注保持不变；第 5 段及之后自动忽略）
 		</div>
 		<div id="pw-sk5-edit-error"></div>
 		<div id="pw-sk5-edit-buttons">
@@ -2050,6 +2282,451 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 		return { load: load, toggle: toggle };
 	})();
 
+	window.socksDnsCheck = (function() {
+		const endpoint = '<%=api.url("socks_dns_check_master")%>';
+		let busy = false;
+
+		function showProgress(title, seconds) {
+			let mask = document.getElementById("pw-progress-mask");
+			if (!mask) {
+				mask = document.createElement("div");
+				mask.id = "pw-progress-mask";
+				mask.className = "pw-progress-mask";
+				mask.innerHTML =
+					'<div class="pw-progress-box">' +
+					'<div class="pw-progress-title" id="pw-progress-title"></div>' +
+					'<div class="pw-progress-text">正在重启 PassWall 生效，请稍候，完成后自动刷新…</div>' +
+					'<div class="pw-progress-track"><div class="pw-progress-bar" id="pw-progress-bar"></div></div>' +
+					'<div class="pw-progress-pct" id="pw-progress-pct">0%</div>' +
+					'</div>';
+				document.body.appendChild(mask);
+			}
+			document.getElementById("pw-progress-title").textContent = title;
+			const bar = document.getElementById("pw-progress-bar");
+			const pct = document.getElementById("pw-progress-pct");
+			bar.style.width = "0%";
+			pct.textContent = "0%";
+			mask.style.display = "block";
+			const start = Date.now();
+			const expected = (seconds || 20) * 1000;
+			let finished = false;
+			let sawDown = false;
+			function setPct(p) {
+				bar.style.width = (p * 100).toFixed(1) + "%";
+				pct.textContent = Math.round(p * 100) + "%";
+			}
+			function finish() {
+				if (finished)
+					return;
+				finished = true;
+				setPct(1);
+				setTimeout(function() { window.location.reload(); }, 300);
+			}
+			function tick() {
+				if (finished)
+					return;
+				const p = Math.min(0.95, (Date.now() - start) / (expected * 1.15));
+				setPct(p);
+				requestAnimationFrame(tick);
+			}
+			requestAnimationFrame(tick);
+			const statusUrl = '<%=api.url("socks_restart_status")%>';
+			const poll = setInterval(function() {
+				XHR.get(statusUrl, null, function(x, r) {
+					if (finished)
+						return;
+					const ready = !!(x && x.status === 200 && r && r.success && r.ready === true);
+					if (!ready) {
+						sawDown = true;
+						return;
+					}
+					if (sawDown || Date.now() - start > 10000) {
+						clearInterval(poll);
+						finish();
+					}
+				});
+			}, 800);
+			setTimeout(function() {
+				clearInterval(poll);
+				finish();
+			}, 60000);
+		}
+
+		function load() {
+			const toggle = document.getElementById("pw-dns-check-toggle");
+			if (!toggle)
+				return;
+			XHR.get(endpoint, null, function(x, result) {
+				if (x && x.status === 200 && result && result.success) {
+					toggle.checked = result.enabled === true;
+					if (result.count)
+						toggle.title = "已对 " + result.count + " 条带源 IP 的分流规则生效";
+				}
+			});
+		}
+
+		function toggle(control) {
+			if (busy) {
+				control.checked = !control.checked;
+				return;
+			}
+			busy = true;
+			const wanted = control.checked;
+			control.disabled = true;
+			XHR.post(endpoint, {
+				enabled: wanted ? "1" : "0"
+			}, function(x, result) {
+				busy = false;
+				control.disabled = false;
+				if (!x || x.status !== 200 || !result || !result.success) {
+					control.checked = !wanted;
+					alert((result && result.message) || "设置失败。");
+					return;
+				}
+				showProgress(wanted ? "DNS检测已开启" : "DNS检测已关闭", 16);
+			});
+		}
+
+		return { load: load, toggle: toggle };
+	})();
+
+	window.pwPager = (function () {
+		const SIZES = [20, 50, 0];
+		let size = parseInt(localStorage.getItem("pw-pager-size") || "<%=plugin_page_size%>", 10);
+		if (SIZES.indexOf(size) === -1)
+			size = 20;
+		let page = 1;
+		let timer = null;
+		let applying = false;
+
+		function allRows() {
+			return Array.from(document.querySelectorAll("#node_list tr.cbi-section-table-row"));
+		}
+
+		function ensureBar() {
+			const box = document.getElementById("node_list");
+			let bar = document.getElementById("pw-pager");
+			if (!bar && box) {
+				bar = document.createElement("div");
+				bar.id = "pw-pager";
+				bar.className = "pw-pager";
+				bar.innerHTML =
+					'<label>每页显示 <select id="pw-pager-size">' +
+					'<option value="20">20 行</option>' +
+					'<option value="50">50 行</option>' +
+					'<option value="0">全部在一页</option>' +
+					'</select></label>' +
+					'<button type="button" class="btn cbi-button" id="pw-pager-prev">上一页</button>' +
+					'<span id="pw-pager-pages"></span>' +
+					'<button type="button" class="btn cbi-button" id="pw-pager-next">下一页</button>' +
+					'<span id="pw-pager-info"></span>';
+				if (box.parentNode)
+					box.parentNode.insertBefore(bar, box.nextSibling);
+				else
+					box.appendChild(bar);
+			}
+			if (!bar)
+				return null;
+			if (!bar._pwBound) {
+				bar._pwBound = true;
+				const sel = bar.querySelector("#pw-pager-size");
+				if (sel) {
+					sel.value = String(size);
+					sel.addEventListener("change", function () {
+						size = parseInt(this.value, 10) || 0;
+						localStorage.setItem("pw-pager-size", String(size));
+						page = 1;
+						refresh();
+					});
+				}
+				const prev = bar.querySelector("#pw-pager-prev");
+				if (prev)
+					prev.addEventListener("click", function () {
+						if (page > 1) {
+							page--;
+							refresh();
+						}
+					});
+				const next = bar.querySelector("#pw-pager-next");
+				if (next)
+					next.addEventListener("click", function () {
+						page++;
+						refresh();
+					});
+				const pagesBox = bar.querySelector("#pw-pager-pages");
+				if (pagesBox)
+					pagesBox.addEventListener("click", function (ev) {
+						const b = ev.target.closest ? ev.target.closest("button") : null;
+						if (!b || b.dataset.page === undefined)
+							return;
+						page = parseInt(b.dataset.page, 10) || 1;
+						refresh();
+					});
+			}
+			return bar;
+		}
+
+		function refresh() {
+			if (applying)
+				return;
+			applying = true;
+			try {
+				const bar = ensureBar();
+				if (!bar)
+					return;
+				const rows = allRows();
+				const shown = rows.filter(function (r) {
+					return !r.classList.contains("pw-row-hidden");
+				});
+				const total = shown.length;
+				const per = size > 0 ? size : total;
+				const pages = per > 0 ? Math.max(1, Math.ceil(total / per)) : 1;
+				if (page > pages)
+					page = pages;
+				if (page < 1)
+					page = 1;
+				const start = (page - 1) * per;
+				const end = start + per;
+				if (size <= 0) {
+					rows.forEach(function (r) {
+						if (r.classList.contains("pw-page-hidden"))
+							r.classList.remove("pw-page-hidden");
+					});
+				} else {
+					shown.forEach(function (r, i) {
+						const hide = (i < start || i >= end);
+						if (hide !== r.classList.contains("pw-page-hidden"))
+							r.classList.toggle("pw-page-hidden", hide);
+					});
+				}
+				const pagesBox = bar.querySelector("#pw-pager-pages");
+				if (pagesBox) {
+					pagesBox.textContent = "";
+					const nums = [];
+					if (pages <= 9) {
+						for (let n = 1; n <= pages; n++)
+							nums.push(n);
+					} else {
+						nums.push(1);
+						for (let n = Math.max(2, page - 2); n <= Math.min(pages - 1, page + 2); n++)
+							nums.push(n);
+						nums.push(pages);
+					}
+					let last = 0;
+					nums.forEach(function (n) {
+						if (last && n - last > 1) {
+							const gap = document.createElement("span");
+							gap.textContent = "…";
+							pagesBox.appendChild(gap);
+						}
+						const b = document.createElement("button");
+						b.type = "button";
+						b.className = "btn cbi-button" + (n === page ? " pw-pager-current" : "");
+						b.textContent = String(n);
+						b.dataset.page = String(n);
+						pagesBox.appendChild(b);
+						last = n;
+					});
+				}
+				const info = bar.querySelector("#pw-pager-info");
+				if (info)
+					info.textContent = "第 " + page + "/" + pages + " 页（共 " + total + " 个）";
+				const prev = bar.querySelector("#pw-pager-prev");
+				const next = bar.querySelector("#pw-pager-next");
+				if (prev)
+					prev.disabled = page <= 1;
+				if (next)
+					next.disabled = page >= pages;
+				const sel = bar.querySelector("#pw-pager-size");
+				if (sel)
+					sel.value = String(size);
+			} finally {
+				applying = false;
+			}
+		}
+
+		function schedule() {
+			if (applying)
+				return;
+			clearTimeout(timer);
+			timer = setTimeout(refresh, 120);
+		}
+
+		function init() {
+			const box = document.getElementById("node_list");
+			if (!box)
+				return;
+			new MutationObserver(schedule).observe(box, {
+				childList: true,
+				subtree: true,
+				attributes: true,
+				attributeFilter: ["class"]
+			});
+			refresh();
+		}
+
+		return { init: init, refresh: refresh, schedule: schedule };
+	})();
+
+	window.socksIpProbe = (function() {
+		const endpoint = '<%=api.url("socks_ip_probe")%>';
+		let busy = false;
+		let running = false;
+		let stopped = false;
+
+		function clearResults() {
+			document.querySelectorAll(".pw-probe-result").forEach(function (el) {
+				el.textContent = "";
+				el.className = "pw-probe-result";
+				el.title = "";
+			});
+		}
+
+		function runAll(done) {
+			if (running)
+				return;
+			// 只检测有延时的节点（Ping/TCPing 显示为 "xx ms" 的行）
+			const spans = Array.from(document.querySelectorAll(".pw-probe-result[data-node]")).filter(function (span) {
+				const row = span.closest("tr");
+				if (!row)
+					return false;
+				const cells = row.querySelectorAll(".pw-ping, .pw-tcping");
+				for (let i = 0; i < cells.length; i++) {
+					const txt = (cells[i].textContent || "").trim();
+					if (/\d+\s*ms/i.test(txt))
+						return true;
+				}
+				return false;
+			});
+			if (!spans.length) {
+				if (done)
+					done();
+				return;
+			}
+			running = true;
+			stopped = false;
+			let i = 0;
+
+			function next() {
+				if (stopped || i >= spans.length) {
+					running = false;
+					if (done)
+						done();
+					return;
+				}
+				const span = spans[i++];
+				const id = span.getAttribute("data-node") || "";
+				socksNodeProbe.run(id, null, function () {
+					setTimeout(next, 120);
+				});
+			}
+
+			next();
+		}
+
+		function load() {
+			XHR.get(endpoint, null, function (x, result) {
+				if (!x || x.status !== 200 || !result || !result.success)
+					return;
+				const t = document.getElementById("pw-ip-probe-toggle");
+				if (t)
+					t.checked = result.enabled === true;
+				if (result.enabled === true) {
+					// 页面节点表格是异步渲染的，稍等后开始批量检测
+					let tries = 0;
+					const timer = setInterval(function () {
+						tries++;
+						if (document.querySelectorAll(".pw-probe-result[data-node]").length > 0 || tries > 40) {
+							clearInterval(timer);
+							runAll();
+						}
+					}, 150);
+				}
+			});
+		}
+
+		function toggle(control) {
+			if (busy) {
+				control.checked = !control.checked;
+				return;
+			}
+			busy = true;
+			const wanted = control.checked;
+			control.disabled = true;
+			XHR.post(endpoint, { enabled: wanted ? "1" : "0" }, function (x, result) {
+				busy = false;
+				control.disabled = false;
+				if (!x || x.status !== 200 || !result || !result.success) {
+					control.checked = !wanted;
+					alert((result && result.message) || "设置失败。");
+					return;
+				}
+				if (wanted) {
+					runAll();
+				} else {
+					stopped = true;
+					clearResults();
+				}
+			});
+		}
+
+		return { load: load, toggle: toggle, runAll: runAll };
+	})();
+
+	window.socksNodeProbe = (function() {
+		const endpoint = '<%=api.url("socks_node_probe")%>';
+
+		function run(id, btn, done) {
+			if (!id) {
+				if (done)
+					done();
+				return;
+			}
+			const cell = btn ? btn.closest("td") : null;
+			let span = cell ? cell.querySelector(".pw-probe-result") : null;
+			if (!span)
+				span = document.querySelector('.pw-probe-result[data-node="' + id + '"]');
+			if (btn)
+				btn.disabled = true;
+			if (span) {
+				span.textContent = "检测中…";
+				span.className = "pw-probe-result";
+				span.title = "";
+			}
+			XHR.post(endpoint, { id: id }, function(x, result) {
+				if (btn)
+					btn.disabled = false;
+				if (done)
+					done();
+				if (!span)
+					return;
+				if (x && x.status === 200 && result && result.success) {
+					span.textContent = "✓\u00a0" + (result.ip || "") +
+							(result.city ? "\u00a0\u00a0" + result.city : "");
+						if (result.latency) {
+							const lat = document.createElement("span");
+							lat.className = "pw-probe-lat-" +
+								(Number(result.latency) > <%=plugin_threshold%> ? "high" : "low");
+							lat.textContent = "\u00a0\u00a0" + result.latency + "ms";
+							span.appendChild(lat);
+						}
+					span.className = "pw-probe-result pw-probe-ok";
+					span.title = [
+						result.ip || "",
+						result.region || "",
+						result.city || "",
+						result.isp || ""
+					].filter(Boolean).join(" / ");
+				} else {
+					span.textContent = "✗ " + ((result && result.message) || "检测失败");
+					span.className = "pw-probe-result pw-probe-fail";
+				}
+			});
+		}
+
+		return { run: run };
+	})();
+
 	window.socksQuickEdit = (function() {
 		const endpoint = '<%=api.url("socks_quick_edit")%>';
 		let currentId = "";
@@ -2070,7 +2747,7 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 			currentId = "";
 			busy = false;
 			showError("");
-			field("password").value = "";
+			field("line").value = "";
 		}
 
 		function open(id) {
@@ -2079,55 +2756,46 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 			currentId = id;
 			busy = true;
 			showError("");
-			["remarks", "address", "port", "username", "password"].forEach(function(name) {
-				field(name).value = "";
-			});
+			field("line").value = "";
 			const modal = document.getElementById("pw-sk5-edit-modal");
 			modal.classList.add("open");
-			field("remarks").placeholder = "读取中…";
+			field("line").placeholder = "读取中…";
 			XHR.get(endpoint, { id: id }, function(x, result) {
 				if (currentId !== id)
 					return;
 				busy = false;
-				field("remarks").placeholder = "";
+				field("line").placeholder = "";
 				if (!x || x.status !== 200 || !result || !result.success) {
-					showError(result && result.message || "读取 SOCKS5 信息失败。");
+					showError((result && result.message) || "读取节点信息失败。");
 					return;
 				}
-				field("remarks").value = result.remarks || "";
-				field("address").value = result.address || "";
-				field("port").value = result.port || "";
-				field("username").value = result.username || "";
-				field("remarks").focus();
+				field("line").value = [
+					result.address || "",
+					result.port || "",
+					result.username || ""
+				].join("/") + "/";
+				field("line").focus();
+				field("line").select();
 			});
 		}
 
 		function save() {
 			if (!currentId || busy)
 				return;
-			const address = field("address").value.trim();
-			const port = Number(field("port").value);
-			if (!address) {
-				showError("请填写节点地址。");
-				return;
-			}
-			if (!Number.isInteger(port) || port < 1 || port > 65535) {
-				showError("端口必须是 1-65535。");
+			const line = field("line").value.trim();
+			if (!line) {
+				showError("请填写节点信息。");
 				return;
 			}
 			busy = true;
 			showError("正在保存…");
 			XHR.post(endpoint, {
 				id: currentId,
-				remarks: field("remarks").value.trim(),
-				address: address,
-				port: port,
-				username: field("username").value,
-				password: field("password").value
+				line: line
 			}, function(x, result) {
 				busy = false;
 				if (!x || x.status !== 200 || !result || !result.success) {
-					showError(result && result.message || "保存失败。");
+					showError((result && result.message) || "保存失败。");
 					return;
 				}
 				close();
@@ -2198,11 +2866,6 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 							innerHTML = innerHTML.split("{{tcping}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:ping_node(\'{{id}}\', this, \'tcping\')"><%:Test%></a></span>');
 						} else {
 							innerHTML = innerHTML.split("{{tcping}}").join('<span class="tcping_value" cbiid="{{id}}"><a href="javascript:void(0)" style="color:inherit">---</a></span>');
-						}
-						if (o["address"] && _port) {
-							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping"><a href="javascript:void(0)" onclick="javascript:urltest_node(\'{{id}}\', this)" title="<%:HTTP request latency, for reference only%>"><%:Test%></a></span>');
-						} else {
-							innerHTML = innerHTML.split("{{url_test}}").join('<span class="ping" cbiid="{{id}}">---</span>');
 						}
 						innerHTML = innerHTML.split("{{id}}").join(o[".name"]);
 						innerHTML = innerHTML.split("{{group}}").join(o["group"] || "");
@@ -2297,6 +2960,10 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 				pwNodeSort.enhanceAll();
 			if (window.socksBlockDirect)
 				window.socksBlockDirect.load();
+			if (window.socksDnsCheck)
+				window.socksDnsCheck.load();
+			if (window.socksIpProbe)
+				window.socksIpProbe.load();
 		});
 	}
 
@@ -2328,6 +2995,8 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 					if (refresh) {
 						document.getElementById("node_list").innerHTML = "";
 						loadNodeList();
+	if (window.pwPager)
+		window.pwPager.init();
 					}
 				} else {
 					alert("<%:Error%>");
@@ -2344,35 +3013,7 @@ tr:not([data-protocol="socks"]) .pw-quick-edit {
 				});
 			});
 
-			<% if api.is_js_luci() then -%>
-				waitForElement('div[id*="cbid.<%=appname%>"][id*="url_test_url"]', function(el) {
-					el.addEventListener("cbi-dropdown-change", () => {
-						if (el.value && (!el.new_val || el.new_val != el.value)) {
-							onChange("url_test_url", el.value, false);
-							el.new_val = el.value;
-						}
-					});
-				});
-			<% else -%>
-				waitForElement('select[id*="<%=appname%>"][id*="url_test_url"]', function(el) {
-					el.addEventListener("change", () => {
-						if (el.value && (!el.new_val || el.new_val != el.value)) {
-							onChange("url_test_url", el.value, false);
-							el.new_val = el.value;
-						}
-					});
-				});
-
-				waitForElement('input[id*="<%=appname%>"][id*="url_test_url"]', function(el) {
-					el.addEventListener("change", () => {
-						if (el.value && (!el.new_val || el.new_val != el.value)) {
-							onChange("url_test_url", el.value, false);
-							el.new_val = el.value;
-						}
-					});
-				});
-			<% end -%>
-		}
+					}
 
 		<% if not api.is_js_luci() then -%>
 			const ori_cbi_d_update = cbi_d_update;
